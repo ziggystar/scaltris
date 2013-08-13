@@ -11,9 +11,9 @@ import org.specs2.mutable.Specification
  * To change this template use File | Settings | File Templates.
  */
 
-class StackTest extends Specification{
+class StackTest extends Specification {
 
-  def createBlock(positions: (Int,Int)*) = new Block(positions.map(t => Position(t._1,t._2)).toSet,Unit,(0,0),false)
+  def createBlock(positions: (Int, Int)*) = new Block(positions.map(t => Position(t._1, t._2)).toSet, Unit, (0, 0), false)
 
   /*
   Simple test stack (width 4, height 4) looks like this
@@ -28,10 +28,10 @@ class StackTest extends Specification{
 
     val stack = new Stack(
       Set(
-        createBlock((0,0),(1,0),(0,1),(1,1)),
-        createBlock((3,0),(2,1),(3,1),(3,2))
+        createBlock((0, 0), (1, 0), (0, 1), (1, 1)),
+        createBlock((3, 0), (2, 1), (3, 1), (3, 2))
       ),
-      4,4
+      4, 4
     )
 
     "have one complete line at 1" in {
@@ -45,22 +45,22 @@ class StackTest extends Specification{
 
     "must have the right positions occupied after removing line 1" in {
       val newStack = stack.removeLines(Set(1))
-      val expected = Set[Position]((0,0),(1,0),(3,0),(3,1))
+      val expected = Set[Position]((0, 0), (1, 0), (3, 0), (3, 1))
       newStack.blocks.flatMap(_.components) must beEqualTo(expected)
     }
 
     "must receive garbage correctly" in {
-      val newStack = stack.addAsGarbage(Set(createBlock((0,0),(2,0),(3,0))))
+      val newStack = stack.addAsGarbage(Set(createBlock((0, 0), (2, 0), (3, 0))))
       val expected = Set[Position](
         //the two blocks shifted by one
-        (0,1),(1,1),(0,2),(1,2),
-        (3,1),(2,2),(3,2),(3,3),
+        (0, 1), (1, 1), (0, 2), (1, 2),
+        (3, 1), (2, 2), (3, 2), (3, 3),
         //the garbage line
-        (0,0),(2,0),(3,0)
+        (0, 0), (2, 0), (3, 0)
       )
 
       newStack.blocks.flatMap(_.components) must beEqualTo(expected)
     }
   }
-  
+
 }

@@ -18,9 +18,9 @@ class GameCanvas(var stack: Stack[Color]) extends JPanel with GameStateListener[
 
   val shadowColor = Color.DARK_GRAY.brighter
 
-  val (minBlockSize,prefBlockSize) = (5,15)
+  val (minBlockSize, prefBlockSize) = (5, 15)
 
-  def lightenBy(c: Color, amount: Float) = new Color(c.getColorSpace,c.getComponents(null).map(x => (1-(1-x) * (1-amount))),1f)
+  def lightenBy(c: Color, amount: Float) = new Color(c.getColorSpace, c.getComponents(null).map(x => (1 - (1 - x) * (1 - amount))), 1f)
 
   def gameStateChanged(e: GameState[Color]): Unit = {
     stack = e.stack
@@ -49,9 +49,9 @@ class GameCanvas(var stack: Stack[Color]) extends JPanel with GameStateListener[
         }
       }
     }
-//    def drawBlockColored(block: Block[Color]): Unit = {
-//      drawBlock(block,lightenBy(block.data,(block.bottom.toFloat / stack.height)),block.data.darker)
-//    }
+    //    def drawBlockColored(block: Block[Color]): Unit = {
+    //      drawBlock(block,lightenBy(block.data,(block.bottom.toFloat / stack.height)),block.data.darker)
+    //    }
 
     //draw the blocks
     def drawBlockColored(block: Block[Color]): Unit = {

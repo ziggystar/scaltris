@@ -22,24 +22,36 @@ object ScaltrisSwing {
       new GameState[Color](new Stack[Color](Set.empty, 10, 20), None, Nil),
       new RandomBlockSource(123),
       ConservativeKickPolicy
-      )
+    )
 
     controller.addGameStateListener(tetrisPanel)
 
     val keyControl = new KeyboardInputControl(
       Map(
-        KeyEvent.VK_K -> {l: TetrisKeyListener => l.right()},
-        KeyEvent.VK_N -> {l: TetrisKeyListener => l.left()},
-        KeyEvent.VK_J -> {l: TetrisKeyListener => l.drop()},
-        KeyEvent.VK_D -> {l: TetrisKeyListener => l.rotateLeft()},
-        KeyEvent.VK_V -> {l: TetrisKeyListener => l.rotateRight()},
-        KeyEvent.VK_F -> {l: TetrisKeyListener => l.down()}
-        )
+        KeyEvent.VK_K -> {
+          l: TetrisKeyListener => l.right()
+        },
+        KeyEvent.VK_N -> {
+          l: TetrisKeyListener => l.left()
+        },
+        KeyEvent.VK_J -> {
+          l: TetrisKeyListener => l.drop()
+        },
+        KeyEvent.VK_D -> {
+          l: TetrisKeyListener => l.rotateLeft()
+        },
+        KeyEvent.VK_V -> {
+          l: TetrisKeyListener => l.rotateRight()
+        },
+        KeyEvent.VK_F -> {
+          l: TetrisKeyListener => l.down()
+        }
       )
+    )
 
-    window.addKeyListener(new KeyAdapter(){
+    window.addKeyListener(new KeyAdapter() {
       override def keyPressed(p1: KeyEvent) {
-        if(p1.getKeyCode == KeyEvent.VK_L)
+        if (p1.getKeyCode == KeyEvent.VK_L)
           controller.addGarbage(2)
       }
     })

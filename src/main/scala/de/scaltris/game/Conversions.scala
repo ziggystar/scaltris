@@ -9,5 +9,5 @@ package de.scaltris.game
  */
 
 object Conversions {
-  implicit def tuple2Position(t: Tuple2[Int,Int]) = Position(t._1,t._2)
+  implicit def tuple2Position(t: Tuple2[Int, Int]) = Position(t._1, t._2)
 }
