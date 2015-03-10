@@ -8,7 +8,7 @@ import org.specs2.specification.Fragments
  * @since 11/24/13
  */
 
-class InfiniteTetris$Test extends Specification {
+class InfiniteTetrisTest extends Specification {
   import InfiniteTetris._
   import Pieces._
 

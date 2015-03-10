@@ -2,6 +2,6 @@ name := "scaltris"
 
 version := "1.0"
 
-scalaVersion := "2.10.3"
+scalaVersion := "2.11.5"
 
-libraryDependencies += "org.specs2" % "specs2_2.10" % "2.3.4"
+libraryDependencies += "org.specs2" %% "specs2" % "2.3.+"
