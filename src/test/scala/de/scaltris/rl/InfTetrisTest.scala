@@ -7,6 +7,7 @@ import scala.util.Random
 
 class InfTetrisTest extends Specification {
   val stdGame = InfTetris()
+  InfTetris(width=4).printPieces()
   override def is: Fragments =
     "empty stack has 0 as topRow" ! (stdGame.Stack.empty.topRow === 0) ^
       "fill lines into empty stack" ! (stdGame.Stack.empty.fillToMin(new Random(0))._2 === stdGame.minHeight) ^

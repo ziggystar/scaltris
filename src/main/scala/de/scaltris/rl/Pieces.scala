@@ -124,4 +124,11 @@ object Pieces{
     rotP <- piece.generateRotations.map(_.align(0,0)).toSeq
     shifted <- rotP.generateShifts(stackwidth)
   } yield shifted
+
+  def allPiecesRotatedShiftedOrdered(stackwidth: Int): IndexedSeq[IndexedSeq[IndexedSeq[Set[(Int,Int)]]]] =
+    stringPieces.map(_._2).map(stringToSet).map(piece =>
+      piece.generateRotations.map(_.align(0,0)).distinct.map(rotP =>
+        rotP.generateShifts(stackwidth)
+      )(collection.breakOut)
+    )(collection.breakOut)
 }
