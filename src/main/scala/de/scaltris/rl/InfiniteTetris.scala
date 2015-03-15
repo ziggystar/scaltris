@@ -8,7 +8,7 @@ import scala.annotation.tailrec
  * @since 4/29/13
  */
 
-object InfiniteTetris extends MDP {
+object InfiniteTetris extends FlatActionMDP {
   type State = (Stream[Int],Int)
   type Action = (Int,Int)
 
@@ -105,4 +105,10 @@ object InfiniteTetris extends MDP {
       String.valueOf((0 until stackWidth).map(x => if(rowSet(x)) '#' else ' '))
     }.mkString("\n")
   }
+
+  override def initialState(r: Random): (Stream[Int], Int) = ???
+
+  override def actions(state: (Stream[Int], Int)): IndexedSeq[(Int, Int)] = ???
+
+  override def act(state: (Stream[Int], Int), action: (Int, Int), r: Random): ((Stream[Int], Int), Double) = ???
 }

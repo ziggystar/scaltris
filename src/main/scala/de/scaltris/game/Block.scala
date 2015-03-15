@@ -67,6 +67,6 @@ object Block{
       case 6 => (Set((0,0),(0,1),(1,0),(1,1)), (1,1), true)
     }
 
-    new Block(components._1.map{_.translate(pos)}, data, components._2.translate(pos), components._3)
+    new Block(components._1.map(_.translate(pos)), data, components._2.translate(pos), components._3)
   }
 }
