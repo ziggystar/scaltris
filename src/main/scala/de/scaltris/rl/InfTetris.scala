@@ -4,23 +4,18 @@ import de.scaltris.game.{Position, Block}
 
 import scala.util.Random
 
-/**
- * @author Thomas Geier
- * @since 11/20/13
- */
-
-trait FlatActionMDP {
-  type State
-  type Action
-
-  def initialState(r: Random): State
-  def act(state: State, action: Action, r: Random): (State,Double)
-  def actions(state: State): IndexedSeq[Action]
-}
-
+/** Inifitite Tetris MDP implementation.
+  * If the player tops out, the stack "scrolls" upwards and there is some penalty for each topped out line.
+  * If the stack height drops below `minHeight`, then garbage lines are added to the bottom and some reward is given.
+  * @param width Width of the stack.
+  * @param maxHeight If the stack becomes higher than this, then lines at the bottom get removed with a penalty.
+  * @param minHeight If the height of the stack falls below this, then garbage gets added at the bottom.
+  * @param clearReward Reward gained when clearing lines, depending on how many lines were cleared at once.
+  * @param newLineReward Reward for getting a new garbage line.
+  * @param topOutLineReward Reward for every topping out one line. Should be negative.*/
 case class InfTetris(width: Int = 10, maxHeight: Int = 22,
                      minHeight: Int = 4,
-                     clearReward: Int => Double = _ => 1,
+                     clearReward: Int => Double = _ * 1,
                      newLineReward: Double = 1,
                      topOutLineReward: Double = -10) extends FlatActionMDP {
   type Tetromino = Int
@@ -44,13 +39,19 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
 
   case class Action(rotation: Int, xOffset: Int)
 
-  case class Stack(rows: Array[Int]) extends AnyVal {
-  def topRow: Int = rows.zipWithIndex.filterNot(_._1 == 0).map(_._2).max
+  case class Stack(rows: Array[Int]) {
+
+    def isRowEmpty(row: Int): Boolean = row == 0
+
+    def topRow: Int = rows.zipWithIndex.foldLeft(0){
+    case (m,(r,i)) if isRowEmpty(r) => m
+    case (m,(r,i)) => i + 1
+  }
     def fullLines = rows.zipWithIndex.filter(li => isFullLine(li._1)).map(_._2)
     def isFullLine(l: Int): Boolean = (l & fullLine) == fullLine
     /** @return Second is number of added garbage lines. */
     def fillToMin(r: Random): (Stack,Int) = {
-      val requiredLines = topRow - minHeight
+      val requiredLines = math.max(minHeight - topRow,0)
       val newStack = Iterator.iterate(this)(_.addGarbageLineUnsafe(r)).drop(requiredLines).next()
       (newStack,requiredLines)
     }
