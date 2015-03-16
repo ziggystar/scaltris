@@ -1,7 +1,5 @@
 package de.scaltris.rl
 
-import de.scaltris.game.{Position, Block}
-
 import scala.util.Random
 import scala.util.hashing.MurmurHash3
 
@@ -17,8 +15,8 @@ import scala.util.hashing.MurmurHash3
 case class InfTetris(width: Int = 10, maxHeight: Int = 22,
                      minHeight: Int = 4,
                      clearReward: Int => Double = _ * 1,
-                     newLineReward: Double = 1,
-                     topOutLineReward: Double = -10) extends FlatActionMDP {
+                     newLineReward: Int => Double = _ * 1,
+                     topOutLineReward: Int => Double = _ * -10) extends FlatActionMDP {
   require(width < 32)
   type Tetromino = Int
   type Line = Int
@@ -47,8 +45,13 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
 
   case class Action(rotation: Int, xOffset: Int)
 
-  case class Stack(rows: Array[Line]) {
-
+  case class DropResult(cleared: Int, receivedGarbage: Int, topoutLines: Int) {
+    def reward: Double = clearReward(cleared) + newLineReward(receivedGarbage) + topOutLineReward(topoutLines)
+  }
+  
+  case class Stack(rows: Array[Line], partial: Boolean = false) {
+    require(partial || rows.length == maxHeight, "created short stack")
+    
     def isRowEmpty(row: Line): Boolean = row == 0
 
     def topRow: Int = rows.zipWithIndex.foldLeft(0){
@@ -65,6 +68,53 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
     }
     /** Adds one line of garbage with a random hole at the bottom. */
     private def addGarbageLineUnsafe(r: Random): Stack = Stack((fullLine & ~(1 << r.nextInt(width))) +: rows.init)
+    
+    def dropOn(piece: PartialStack, random: Random): (Stack,DropResult) = {
+      //find the height where to place the piece
+      def overlaps(height: Int): Boolean = piece.zip(rows.drop(height)).exists{case (l1,l2) => (l1 & l2) != 0}
+      val contactHeight = {
+        var tmp = topRow
+        while(!overlaps(tmp)) tmp -= 1
+        tmp
+      }
+      
+      //topout penalty, and shrink stack
+      val topout = math.max(contactHeight + Stack(piece, partial = false).topRow - maxHeight, 0)
+      val shrunk = shrink(topout)
+      val dropHeight = contactHeight - topout
+      
+      //add the piece to the stack
+     val added = Stack {
+        shrunk.rows.zipWithIndex.map{
+          case (line,i) if i >= dropHeight && (i-dropHeight) < piece.length => line | piece(i-dropHeight)
+          case (line,i) => line
+        }
+      }
+      
+      //check for full lines
+      val (cleared, clearedLines) = added.clearFullLines
+      
+      //fill with garbage
+      val (refilled, filledLines) = cleared.fillToMin(random)
+      
+      (refilled,DropResult(clearedLines, filledLines, topout))
+    }
+    
+    def clearFullLines: (Stack, Int) = {
+      val cleared = rows.filterNot(_ == fullLine)
+      val numCleared = maxHeight - cleared.length
+      (Stack(cleared ++ Array.fill(numCleared)(0)), numCleared)
+    }
+    
+    def shrink(lines: Int): Stack = Stack(rows.drop(lines) ++ Array.fill(lines)(0))
+    
+    def profile: Array[Int] = (0 until width).map{ col =>
+      var h = topRow
+      while(isSet(col,h)) h -= 1
+      h
+    }(collection.breakOut)
+    
+    def isSet(col: Int, row: Int): Boolean = (rows(row) & (1 << col)) == (1 << col) 
 
     override def toString: String = {
       def l2s(line: Line): String =
@@ -73,7 +123,7 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
     }
 
     override def equals(obj: scala.Any): Boolean = obj match {
-      case Stack(or) => or.sameElements(rows)
+      case Stack(or,_) => or.sameElements(rows)
       case _         => false
     }
 
@@ -93,14 +143,18 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
     (_,off) <- offs.zipWithIndex
   } yield Action(rot,off)
 
-  override def act(state: State, action: Action, r: Random): (State, Double) = ???
+  override def act(state: State, action: Action, r: Random): (State, Double) = {
+    val (nextStack, dropResult) = state._1.dropOn(blocks(state._2)(action.rotation)(action.xOffset), r)
+    ((nextStack,randomTetromino(r)),dropResult.reward)
+  }
+
   def printPieces(): Unit = {
     for {
       xs <- blocks
       ys <- xs
       z <- ys
     }{
-      println(Stack(z))
+      println(Stack(z,true))
     }
   }
 }
