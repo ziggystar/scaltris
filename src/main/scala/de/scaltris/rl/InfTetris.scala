@@ -73,13 +73,13 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       //find the height where to place the piece
       def overlaps(height: Int): Boolean = piece.zip(rows.drop(height)).exists{case (l1,l2) => (l1 & l2) != 0}
       val contactHeight = {
-        var tmp = topRow
-        while(!overlaps(tmp)) tmp -= 1
+        var tmp = topRow + 1
+        while(!overlaps(tmp - 1) && tmp > 0) tmp -= 1
         tmp
       }
       
       //topout penalty, and shrink stack
-      val topout = math.max(contactHeight + Stack(piece, partial = false).topRow - maxHeight, 0)
+      val topout = math.max(contactHeight + Stack(piece, partial = true).topRow - maxHeight, 0)
       val shrunk = shrink(topout)
       val dropHeight = contactHeight - topout
       
@@ -119,7 +119,7 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
     override def toString: String = {
       def l2s(line: Line): String =
         Iterator.iterate(line)(_ >> 1).map(shifted => if((shifted & 1) == 1) "#" else "·").take(width).mkString
-      Seq.fill(width)("*").mkString + "\n" + rows.map(l2s).mkString("\n") + "\n" + Seq.fill(width)("*").mkString
+      Seq.fill(width)("*").mkString + "\n" + rows.reverse.map(l2s).mkString("\n") + "\n" + Seq.fill(width)("*").mkString
     }
 
     override def equals(obj: scala.Any): Boolean = obj match {
