@@ -3,7 +3,7 @@ package de.scaltris.rl.viewer
 import java.awt._
 import javax.swing._
 
-import de.scaltris.rl.InfTetris
+import de.scaltris.rl.{SARSA, FlatActionMDP, InfTetris}
 import rx.lang.scala.{Observer, Subject, Observable}
 
 import scala.concurrent.duration.Duration
@@ -17,20 +17,21 @@ object Main {
     val state = Subject[tetris.Stack]()
 
 
-    var rand = new Random(0)
-    val states: Iterator[((tetris.Stack, tetris.Tetromino), Double)] =
-      Iterator.iterate((tetris.initialState(rand),0d)){ case (s,r) =>
-        val actions = tetris.actions(s)
-        val sel = actions(rand.nextInt(actions.size))
-        tetris.act(s,sel,rand)
-      }
 
+    var rand = new Random(0)
+    val policy = SARSA(tetris)({case (stack,next) =>
+        stack.profile.sliding(2).map(heights => math.max(-1,math.min(1,heights(0) - heights(1)))).toIndexedSeq
+    })
+    policy.train(100000,0.4,rand)
+    policy.train(200000,0.1,rand)
+    policy.train(500000,0.03,rand)
+    val states = FlatActionMDP.rollout(policy, rand)
     val stateObs = Observable.interval(Duration("500ms")).map { _ =>
       states.next()
     }
 //    stateObs.subscribe(println(_))
 
-    window.getContentPane.add(new StackViewer(tetris)(stateObs.map(_._1._1)), BorderLayout.CENTER)
+    window.getContentPane.add(new StackViewer(tetris)(stateObs.map(_._1.asInstanceOf[tetris.State]._1)), BorderLayout.CENTER)
     window.getContentPane.add(new JLabel("RL Tetris"), BorderLayout.NORTH)
 
     window.pack()
