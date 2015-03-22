@@ -15,7 +15,11 @@ trait FlatActionMDP {
   def initialState(r: Random): State
   def act(state: State, action: Action, r: Random): (State,Double)
   def actions(state: State): IndexedSeq[Action]
-  def gamma: Double = 0.9
+  def discount: Double = 0.9
+
+  trait Feature {
+    def compute(state: State): Double
+  }
 }
 
 object FlatActionMDP {
@@ -49,7 +53,7 @@ class SARSA[F](val mdp: FlatActionMDP, defaultValue: Double = 0)(_extract: FlatA
       val a2 = getAction(s2, random)
       val qs2a2 = q.getOrElse((fs2,a2),defaultValue)
       //update q
-      q((fs,a)) = qsa + learningRate*(r + mdp.gamma*qs2a2  - qsa)
+      q((fs,a)) = qsa + learningRate*(r + mdp.discount*qs2a2  - qsa)
       s = s2
       fs = fs2
       a = a2

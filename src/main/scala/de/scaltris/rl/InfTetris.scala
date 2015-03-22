@@ -17,7 +17,8 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
                      minHeight: Int = 4,
                      clearReward: Int => Double = _ * 1,
                      newLineReward: Int => Double = _ * 1,
-                     topOutLineReward: Int => Double = _ * -10) extends FlatActionMDP {
+                     topOutLineReward: Int => Double = _ * -1000,
+                     override val discount: Double = 0.9) extends FlatActionMDP {
   require(width < 32)
   type Tetromino = Int
   type Line = Int
@@ -188,5 +189,20 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
 
   object Stack{
     def empty: Stack = new Stack(Array.fill(maxHeight)(0))
+  }
+
+  /** Weigh eich block with its height.
+    * `{(x,y): b(x,y) * (y + 1)}`.*/
+  object PotentialEnergy extends Feature {
+    override def compute(state: (Stack, Tetromino)): Double = {
+      val stack = state._1
+      var result = 0d
+      var i = 0
+      while(i < stack.rows.length && stack.rows(i) != 0){
+        result += (i+1) * Integer.bitCount(stack.rows(i))
+        i += 1
+      }
+      result
+    }
   }
 }

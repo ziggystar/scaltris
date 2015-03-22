@@ -3,6 +3,7 @@ package de.scaltris.rl.viewer
 import java.awt._
 import javax.swing._
 
+import de.scaltris.rl.controllers.linear.LinearController
 import de.scaltris.rl.{SARSA, FlatActionMDP, InfTetris}
 import rx.lang.scala.{Observer, Subject, Observable}
 
@@ -19,14 +20,12 @@ object Main {
 
 
     var rand = new Random(0)
-    val policy = SARSA(tetris)({case (stack,next) =>
-        stack.profile.sliding(2).map(heights => math.max(-1,math.min(1,heights(0) - heights(1)))).toIndexedSeq
-    })
-    policy.train(100000,0.4,rand)
-    policy.train(200000,0.1,rand)
-    policy.train(500000,0.03,rand)
+    val policy = new LinearController(tetris)(Seq(
+      tetris.PotentialEnergy -> -5
+    ))
+
     val states = FlatActionMDP.rollout(policy, rand)
-    val stateObs = Observable.interval(Duration("500ms")).map { _ =>
+    val stateObs = Observable.interval(Duration("100ms")).delay(Duration("1s")).map { _ =>
       states.next()
     }
 //    stateObs.subscribe(println(_))
