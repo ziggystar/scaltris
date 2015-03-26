@@ -135,21 +135,33 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
         while(tmp > 0 && !overlaps(tmp - 1) ) tmp -= 1
         tmp
       }
+
       //topout penalty, and shrink stack
       val topout = math.max(contactHeight + piecePS.topRow - maxHeight, 0)
-      val shrunk = shrink(topout)
+      //create the result shrunken by topout lines
+      val shrunk: Array[Line] = {
+        val r = new Array[Line](maxHeight)
+        var i = 0
+        while(i < maxHeight){
+          r(i) = if(i + topout >= maxHeight) 0 else rows(i + topout)
+          i += 1
+        }
+        r
+      }
+
       val dropHeight = contactHeight - topout
 
       //add the piece to the stack
-      val added = Stack {
-        shrunk.rows.zipWithIndex.map{
-          case (line,i) if i >= dropHeight && (i-dropHeight) < piece.length => line | piece(i-dropHeight)
-          case (line,i) => line
+      {
+        var i = 0
+        while(i < piece.length){
+          shrunk(i + dropHeight) = shrunk(i + dropHeight) | piece(i)
+          i += 1
         }
       }
 
       //check for full lines
-      val (cleared, clearedLines) = added.clearFullLines
+      val (cleared, clearedLines) = Stack(shrunk).clearFullLines
 
       //fill with garbage
       val (refilled, filledLines) = cleared.fillToMin(random)
@@ -162,8 +174,6 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       val numCleared = maxHeight - cleared.length
       (Stack(cleared ++ Array.fill(numCleared)(0)), numCleared)
     }
-
-    def shrink(lines: Int): Stack = Stack(rows.drop(lines) ++ Array.fill(lines)(0))
 
     def profile: Array[Int] = (0 until width).map{ col =>
       var h = 0
@@ -204,5 +214,27 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       }
       result
     }
+  }
+
+  object VTransitions extends Feature {
+    override def compute(state: (Stack, Tetromino)): Double = {
+      val stack = state._1
+      var result = 0d
+      var i = 1
+      while(i < stack.rows.length && stack.rows(i) != 0) {
+        result += Integer.bitCount(stack.rows(i-1) ^ stack.rows(i))
+        i += 1
+      }
+      result
+    }
+  }
+
+  object MaxHeight extends Feature {
+    override def compute(state: (Stack, Tetromino)): Double = state._1.topRow
+  }
+
+  object BlockCount extends Feature {
+    override def compute(state: (Stack, Tetromino)): Double =
+      state._1.rows.foldLeft(0){case (a,row) => a + Integer.bitCount(row)}.toDouble
   }
 }
