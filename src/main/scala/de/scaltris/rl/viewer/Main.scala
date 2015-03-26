@@ -22,18 +22,20 @@ object Main {
 
     var rand = new Random(0)
 
-    val ce = new CrossEntropyMethod(tetris,numSamples = 200, nBest = 100, sampleLength = 1000)(Seq(
+    val ce = new CrossEntropyMethod(tetris,numSamples = 500, nBest = 200, sampleLength = 1000)(Seq(
       tetris.PotentialEnergy,
       tetris.VTransitions,
       tetris.MaxHeight,
-      tetris.BlockCount
+      tetris.BlockCount,
+      tetris.DistinctHeights,
+      tetris.Hops
     ))
 
     println(ce)
 
     val init: Iterator[ce.Distribution] = Iterator.iterate(ce.init(IndexedSeq.fill(ce.features.size)((0d,5d)),rand))(_.next(rand))
 
-    val dists = init.take(10).map{ceDist =>
+    val dists = init.take(20).map{ceDist =>
       println(ceDist)
       ceDist
     }.toIndexedSeq

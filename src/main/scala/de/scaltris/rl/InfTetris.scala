@@ -192,10 +192,15 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       (Stack(cleared ++ Array.fill(numCleared)(0)), numCleared)
     }
 
-    def profile: Array[Int] = (0 until width).map{ col =>
-      var h = 0
-      while(h < maxHeight && isSet(col,h)) h += 1
-      h - 1
+    lazy val profile: Array[Int] = (0 until width).map{ col =>
+      var row = 0
+      var max = 0
+      while(row < maxHeight) {
+        if(isSet(col,row))
+          max = row + 1
+        row += 1
+      }
+      max
     }(collection.breakOut)
 
     def isSet(col: Int, row: Int): Boolean = (rows(row) & (1 << col)) == (1 << col)
@@ -253,5 +258,32 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
   object BlockCount extends Feature {
     override def compute(state: (Stack, Tetromino)): Double =
       state._1.rows.foldLeft(0){case (a,row) => a + Integer.bitCount(row)}.toDouble
+  }
+  object DistinctHeights extends Feature {
+    require(maxHeight < 32)
+    val bits: Array[Int] = (0 to maxHeight).map(1 << _)(collection.breakOut)
+    override def compute(state: (Stack, Tetromino)): Double = {
+      val p = state._1.profile
+      var acc = 0
+      var i = 0
+      while(i < width){
+        acc = acc | bits(p(i))
+        i += 1
+      }
+      Integer.bitCount(acc)
+    }
+  }
+  object Hops extends Feature {
+    override def compute(state: (Stack, Tetromino)): Double = {
+      val p = state._1.profile
+      var hops = 0
+      var i = 0
+      while(i < width-1){
+        if(p(i) != p(i+1))
+          hops += 1
+        i += 1
+      }
+      hops
+    }
   }
 }
