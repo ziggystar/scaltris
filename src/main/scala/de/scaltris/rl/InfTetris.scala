@@ -139,7 +139,7 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       //topout penalty, and shrink stack
       val topout = math.max(contactHeight + piecePS.topRow - maxHeight, 0)
       //create the result shrunken by topout lines
-      val shrunk: Array[Line] = {
+      val result: Array[Line] = {
         val r = new Array[Line](maxHeight)
         var i = 0
         while(i < maxHeight){
@@ -155,16 +155,33 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       {
         var i = 0
         while(i < piece.length){
-          shrunk(i + dropHeight) = shrunk(i + dropHeight) | piece(i)
+          result(i + dropHeight) = result(i + dropHeight) | piece(i)
           i += 1
         }
       }
 
       //check for full lines
-      val (cleared, clearedLines) = Stack(shrunk).clearFullLines
+      val clearedLines = {
+        var i = dropHeight
+        var cleared = 0
+        while(i < maxHeight){
+          val full = result(i) == fullLine
+
+          if(full)
+            cleared += 1
+
+          result(i) =
+            if(i + cleared < maxHeight) result(i + cleared)
+            else 0
+
+          if(!full)
+            i += 1
+        }
+        cleared
+      }
 
       //fill with garbage
-      val (refilled, filledLines) = cleared.fillToMin(random)
+      val (refilled, filledLines) = Stack(result).fillToMin(random)
 
       (refilled,DropResult(clearedLines, filledLines, topout))
     }
