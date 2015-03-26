@@ -1,13 +1,16 @@
 package de.scaltris.rl.viewer
 
 import java.awt._
+import javax.swing.GroupLayout.Alignment
 import javax.swing._
 
 import de.scaltris.rl.controllers.linear.LinearController
-import de.scaltris.rl.{SARSA, FlatActionMDP, InfTetris}
+import de.scaltris.rl.controllers.linear.ce.CrossEntropyMethod
+import de.scaltris.rl.{Policy, SARSA, FlatActionMDP, InfTetris}
 import rx.lang.scala.{Observer, Subject, Observable}
 
 import scala.concurrent.duration.Duration
+import scala.swing.FlowPanel
 import scala.util.Random
 
 object Main {
@@ -17,26 +20,63 @@ object Main {
     val tetris = InfTetris(minHeight = 0)
     val state = Subject[tetris.Stack]()
 
-
-
     var rand = new Random(0)
-    val policy = new LinearController(tetris)(Seq(
-      tetris.PotentialEnergy -> -5
+
+    val ce = new CrossEntropyMethod(tetris,numSamples = 200, nBest = 100, sampleLength = 1000)(Seq(
+      tetris.PotentialEnergy,
+      tetris.VTransitions,
+      tetris.MaxHeight,
+      tetris.BlockCount
     ))
 
-    val states = FlatActionMDP.rollout(policy, rand)
-    val stateObs = Observable.interval(Duration("100ms")).delay(Duration("1s")).map { _ =>
-      states.next()
-    }
-//    stateObs.subscribe(println(_))
+    println(ce)
 
-    window.getContentPane.add(new StackViewer(tetris)(stateObs.map(_._1.asInstanceOf[tetris.State]._1)), BorderLayout.CENTER)
+    val init: Iterator[ce.Distribution] = Iterator.iterate(ce.init(IndexedSeq.fill(ce.features.size)((0d,5d)),rand))(_.next(rand))
+
+    val dists = init.take(10).map{ceDist =>
+      println(ceDist)
+      ceDist
+    }.toIndexedSeq
+
+    val polPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT))
+
+    polPanel.add(new PolicyViewer(dists.head.controller))
+    polPanel.add(new PolicyViewer(dists.last.controller))
+
+    window.getContentPane.add(polPanel, BorderLayout.CENTER)
     window.getContentPane.add(new JLabel("RL Tetris"), BorderLayout.NORTH)
 
     window.pack()
     window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)
     window.setVisible(true)
   }
+
+  def fromIntervalled[A](xs: Iterable[A], interval: Duration, delay: Duration = Duration(0, "s")): Observable[A] = {
+    val it = xs.iterator
+    Observable.interval(interval).delay(delay)
+      .map(_ => Some(it).filter(_.hasNext).map(_.next()))
+      .takeWhile(_.isDefined).map(_.get)
+  }
+}
+
+class PolicyViewer(val policy: Policy {val mdp: InfTetris},
+                   interval: Duration = Duration("10 ms"), random: Random = new Random(0))
+  extends JPanel() {
+  this.setLayout(new BoxLayout(this,BoxLayout.Y_AXIS))
+
+  val behavior: Observable[(FlatActionMDP#State, Double)] =
+    Main.fromIntervalled(FlatActionMDP.rollout(policy, random).toIterable, interval, delay = Duration(1, "s"))
+  val stacks: Observable[InfTetris#Stack] = behavior.map(_._1.asInstanceOf[InfTetris#State]._1)
+  val reward: Observable[Double] = behavior.map(_._2)
+
+  //num, sum, sum of squar2es
+  val rewardAccum: Observable[(Int, Double, Double)] =
+    reward.scan((0,0d,0d)){case ((n,sum,sumsq),r) => (n+1,sum + r, sumsq + r*r)}
+  val stackView = new StackViewer(policy.mdp)(stacks)
+
+  this.add(stackView)
+  this.add(new RxLabel(rewardAccum.sample(Duration("1 s")).map{case (n,s,ss) => f"avg ${s/n}%.2f"}))
+
 }
 
 class StackViewer(val rules: InfTetris)(val state: Observable[InfTetris#Stack]) extends RxDrawable {
@@ -59,10 +99,16 @@ class StackViewer(val rules: InfTetris)(val state: Observable[InfTetris#Stack]) 
   }
 }
 
+class RxLabel(obs: Observable[String]) extends JLabel{
+  val subscription = obs.subscribe { s =>
+    this.setText(s)
+    this.repaint()
+  }
+}
 
 class RxDrawable extends JComponent {
-  var image: Image = null
-  var g2d: Graphics2D = null
+  @volatile var image: Image = null
+  @volatile var g2d: Graphics2D = null
   setDoubleBuffered(false)
   override def paintComponent(g: Graphics) {
     if (image == null) {
