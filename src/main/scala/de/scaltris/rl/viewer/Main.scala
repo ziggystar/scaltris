@@ -33,7 +33,8 @@ object Main {
 
     println(ce)
 
-    val init: Iterator[ce.Distribution] = Iterator.iterate(ce.init(IndexedSeq.fill(ce.features.size)((0d,5d)),rand))(_.next(rand))
+    val init: Iterator[ce.Distribution] = Iterator
+      .iterate(new ce.IndependentNormal(IndexedSeq.fill(ce.features.size)((0d,5d)),rand): ce.Distribution)(_.next(rand))
 
     val dists = init.take(20).map{ceDist =>
       println(ceDist)

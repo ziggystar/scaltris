@@ -192,18 +192,24 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       (Stack(cleared ++ Array.fill(numCleared)(0)), numCleared)
     }
 
-    lazy val profile: Array[Int] = (0 until width).map{ col =>
-      var row = 0
-      var max = 0
-      while(row < maxHeight) {
-        if(isSet(col,row))
-          max = row + 1
-        row += 1
+    lazy val profile: Array[Int] = {
+      var col = 0
+      val result = new Array[Int](width)
+      while(col < width){
+        var row = 0
+        var max = 0
+        while(row < maxHeight){
+          if(isSet(col,row))
+            max = row + 1
+          row += 1
+        }
+        result(col) = max
+        col += 1
       }
-      max
-    }(collection.breakOut)
+      result
+    }
 
-    def isSet(col: Int, row: Int): Boolean = (rows(row) & (1 << col)) == (1 << col)
+    def isSet(col: Int, row: Int): Boolean = (rows(row) >> col & 1) == 1
 
     override def toString: String = {
       def l2s(line: Line): String =
@@ -225,7 +231,7 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
 
   /** Weigh eich block with its height.
     * `{(x,y): b(x,y) * (y + 1)}`.*/
-  object PotentialEnergy extends Feature {
+  case object PotentialEnergy extends Feature {
     override def compute(state: (Stack, Tetromino)): Double = {
       val stack = state._1
       var result = 0d
@@ -238,28 +244,28 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
     }
   }
 
-  object VTransitions extends Feature {
+  case object VTransitions extends Feature {
     override def compute(state: (Stack, Tetromino)): Double = {
       val stack = state._1
       var result = 0d
       var i = 1
       while(i < stack.rows.length && stack.rows(i) != 0) {
-        result += Integer.bitCount(stack.rows(i-1) ^ stack.rows(i))
+        result += Integer.bitCount(~stack.rows(i-1) & stack.rows(i))
         i += 1
       }
       result
     }
   }
 
-  object MaxHeight extends Feature {
+  case object MaxHeight extends Feature {
     override def compute(state: (Stack, Tetromino)): Double = state._1.topRow
   }
 
-  object BlockCount extends Feature {
+  case object BlockCount extends Feature {
     override def compute(state: (Stack, Tetromino)): Double =
       state._1.rows.foldLeft(0){case (a,row) => a + Integer.bitCount(row)}.toDouble
   }
-  object DistinctHeights extends Feature {
+  case object DistinctHeights extends Feature {
     require(maxHeight < 32)
     val bits: Array[Int] = (0 to maxHeight).map(1 << _)(collection.breakOut)
     override def compute(state: (Stack, Tetromino)): Double = {
@@ -273,7 +279,7 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       Integer.bitCount(acc)
     }
   }
-  object Hops extends Feature {
+  case object Hops extends Feature {
     override def compute(state: (Stack, Tetromino)): Double = {
       val p = state._1.profile
       var hops = 0
@@ -284,6 +290,24 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
         i += 1
       }
       hops
+    }
+  }
+  case object HopAlternations extends Feature {
+    override def compute(state: (Stack, Tetromino)): Double = {
+      val p = state._1.profile
+      var dir = 0 // 1 up, -1 down
+      var alternations = 0
+      var col = 0
+      while(col < width - 1){
+        val curDir = p(col) - p(col + 1)
+        if((curDir > 0 && dir < 0) || (curDir < 0 && dir > 0)){
+          alternations += 1
+        }
+        if(curDir != 0)
+          dir = curDir
+        col += 1
+      }
+      alternations
     }
   }
 }
