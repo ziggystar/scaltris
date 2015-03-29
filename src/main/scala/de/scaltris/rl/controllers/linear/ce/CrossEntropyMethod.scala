@@ -59,6 +59,11 @@ case class CrossEntropyMethod(mdp: InfTetris,
     }
     def paramMode(param: Param): IndexedSeq[Double] = param.map(_._1)
     def construct(p: Param, r: Random): Distribution = new IndependentNormal(p,r)
+
+    override def toString: String = {
+      import de.scaltris.util._
+      f"CE-Dist mean/ds: ${mean(samples.map(_._2))}%.2f/${sd(samples.map(_._2))}%.2f parameters: ${parameters.zip(features).map{case ((m,s),f) => f"$f: $m%.2f/$s%.2f"}.mkString(";")}"
+    }
   }
 
   class MVNormal(val parameters: MultivariateNormalDistribution, val rand: Random) extends Distribution {

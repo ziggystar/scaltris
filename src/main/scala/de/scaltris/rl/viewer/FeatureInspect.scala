@@ -22,7 +22,7 @@ object FeatureInspect {
   )
 
   def sampleStack(r: Random): (tetris.Stack, tetris.Tetromino) =
-    FlatActionMDP.rollout(policy, r).drop(40).next()._1.asInstanceOf[tetris.State]
+    FlatActionMDP.rollout(policy, r).drop(5).next()._1.asInstanceOf[tetris.State]
 
   def main(args: Array[String]) {
     val numStacks = 5
@@ -32,7 +32,7 @@ object FeatureInspect {
       val state@(stack,_) = sampleStack(r)
       println("Stack:")
       println(stack.toString)
-      println(tetris.allFeatures.map(f => s"\t${f} -> ${f.compute(state)}").mkString("\n"))
+      println(tetris.allFeatures.map(f => s"\t$f -> ${f.compute(state)}").mkString("\n"))
     }
 
   }

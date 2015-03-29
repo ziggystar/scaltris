@@ -1,54 +1,60 @@
 package de.scaltris.rl.viewer
 
 import java.awt._
-import javax.swing.GroupLayout.Alignment
 import javax.swing._
 
 import de.scaltris.rl.controllers.linear.LinearController
 import de.scaltris.rl.controllers.linear.ce.CrossEntropyMethod
-import de.scaltris.rl.{Policy, SARSA, FlatActionMDP, InfTetris}
-import rx.lang.scala.{Observer, Subject, Observable}
+import de.scaltris.rl.{FlatActionMDP, InfTetris, Policy}
+import de.scaltris.util._
+import rx.lang.scala.{Observable, Subject}
 
 import scala.concurrent.duration.Duration
-import scala.swing.FlowPanel
 import scala.util.Random
 
 object Main {
   def main(args: Array[String]) {
     val window = new JFrame("RL Tetris")
 
-    val tetris = InfTetris(minHeight = 4, newLineReward = _ * 100)
+    val tetris = InfTetris(minHeight = 4, newLineReward = _ * 10, topOutLineReward = _ * -100)
     val state = Subject[tetris.Stack]()
 
     var rand = new Random(0)
 
-    val ce = new CrossEntropyMethod(tetris,numSamples = 500, nBest = 300, sampleLength = 1000)(tetris.allFeatures)
+    val rolloutLength = 5000
 
+    val weightedFeatures: Seq[(InfTetris#Feature, Double)] = Seq(
+      tetris.PotentialEnergy -> -0.8,
+      tetris.VTransitions -> -7.2,
+      tetris.MaxHeight -> -4,
+      tetris.BlockCount -> 6.3,
+      tetris.DistinctHeights -> -1,
+      tetris.HopAlternations -> -4.9,
+      tetris.CoveringBlocks -> 0.6,
+      tetris.NumberOfHoles -> -6
+    )
+    val fixedPolicy: LinearController = new LinearController(tetris)(weightedFeatures)
+
+    evalPolicy(rand, rolloutLength, fixedPolicy)
+
+    //cross-entropy optimization
+    val ce = new CrossEntropyMethod(tetris,numSamples = 300, nBest = 100, sampleLength = rolloutLength)(weightedFeatures.map(_._1))
     println(ce)
-
     val init: Iterator[ce.Distribution] = Iterator
-      .iterate(new ce.IndependentNormal(IndexedSeq.fill(ce.features.size)((0d,5d)),rand): ce.Distribution)(_.next(rand))
+      .iterate(new ce.IndependentNormal(weightedFeatures.map{case (f,w) => (w,3d)}(collection.breakOut),rand): ce.Distribution)(_.next(rand))
 
-//    val dists = init.take(15).map{ceDist =>
-//      println(ceDist)
-//      ceDist
-//    }.toIndexedSeq
+    val dists = init.take(10).map{ceDist =>
+      println(ceDist)
+      ceDist
+    }.toIndexedSeq
+
+    evalPolicy(rand, rolloutLength, dists.last.controller)
 
     val polPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT))
 
-    val fixedPolicy: LinearController = new LinearController(tetris)(
-      Seq(
-        tetris.PotentialEnergy -> -4,
-        tetris.VTransitions -> -10,
-        tetris.MaxHeight -> 1,
-        tetris.BlockCount -> -3,
-        tetris.DistinctHeights -> 3,
-        tetris.Hops -> -2
-      )
-    )
 
     polPanel.add(new PolicyViewer(fixedPolicy))
-//    polPanel.add(new PolicyViewer(dists.last.controller))
+    polPanel.add(new PolicyViewer(dists.last.controller))
 
     window.getContentPane.add(polPanel, BorderLayout.CENTER)
     window.getContentPane.add(new JLabel("RL Tetris"), BorderLayout.NORTH)
@@ -56,6 +62,12 @@ object Main {
     window.pack()
     window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)
     window.setVisible(true)
+  }
+
+  /** Evaluate a policy and print the result. */
+  def evalPolicy(rand: Random, rolloutLength: Int, fixedPolicy: LinearController): Unit = {
+    val fixedRewards = Seq.fill(30)(de.scaltris.util.mean(FlatActionMDP.rollout(fixedPolicy, rand).take(rolloutLength).map(_._2).toStream))
+    println(f"fixed: ${mean(fixedRewards)}%.2f/${sd(fixedRewards)}%.2f")
   }
 
   def fromIntervalled[A](xs: Iterable[A], interval: Duration, delay: Duration = Duration(0, "s")): Observable[A] = {
@@ -66,7 +78,7 @@ object Main {
 }
 
 class PolicyViewer(val policy: Policy {val mdp: InfTetris},
-                   interval: Duration = Duration("1s"), random: Random = new Random(0))
+                   interval: Duration = Duration("300ms"), random: Random = new Random(0))
   extends JPanel() {
   this.setLayout(new BoxLayout(this,BoxLayout.Y_AXIS))
 
