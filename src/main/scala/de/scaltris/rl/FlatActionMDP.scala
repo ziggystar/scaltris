@@ -34,6 +34,17 @@ object FlatActionMDP {
   def rollout(policy: Policy, r: Random): Iterator[(policy.mdp.State, Double)] =
     Iterator.iterate(policy.mdp.initialState(r) -> 0d){case (s,_) => policy.mdp.act(s,policy.getAction(s,r),r)}
 
+  def rolloutWithAction(policy: Policy, r: Random): Iterator[((policy.mdp.State, Double),policy.mdp.Action)] = {
+
+    val initState = policy.mdp.initialState(r)
+
+    Iterator.iterate(((initState,0d),policy.getAction(initState,r))){case ((s,_),a) =>
+      val nsr@(nextState,_) = policy.mdp.act(s,a,r)
+      val nextAction = policy.getAction(nextState,r)
+      (nsr,nextAction)
+    }
+  }
+
   def randomPlayout(mdp: FlatActionMDP,r: Random): Iterator[(mdp.State, Double)] =
     rollout(randomPolicy(mdp), r).asInstanceOf[Iterator[(mdp.State, Double)]]
 }

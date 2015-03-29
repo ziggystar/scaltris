@@ -17,34 +17,38 @@ object Main {
   def main(args: Array[String]) {
     val window = new JFrame("RL Tetris")
 
-    val tetris = InfTetris(minHeight = 0)
+    val tetris = InfTetris(minHeight = 4, newLineReward = _ * 100)
     val state = Subject[tetris.Stack]()
 
     var rand = new Random(0)
 
-    val ce = new CrossEntropyMethod(tetris,numSamples = 500, nBest = 200, sampleLength = 1000)(Seq(
-      tetris.PotentialEnergy,
-      tetris.VTransitions,
-      tetris.MaxHeight,
-      tetris.BlockCount,
-      tetris.DistinctHeights,
-      tetris.Hops
-    ))
+    val ce = new CrossEntropyMethod(tetris,numSamples = 500, nBest = 300, sampleLength = 1000)(tetris.allFeatures)
 
     println(ce)
 
     val init: Iterator[ce.Distribution] = Iterator
       .iterate(new ce.IndependentNormal(IndexedSeq.fill(ce.features.size)((0d,5d)),rand): ce.Distribution)(_.next(rand))
 
-    val dists = init.take(20).map{ceDist =>
-      println(ceDist)
-      ceDist
-    }.toIndexedSeq
+//    val dists = init.take(15).map{ceDist =>
+//      println(ceDist)
+//      ceDist
+//    }.toIndexedSeq
 
     val polPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT))
 
-    polPanel.add(new PolicyViewer(dists.head.controller))
-    polPanel.add(new PolicyViewer(dists.last.controller))
+    val fixedPolicy: LinearController = new LinearController(tetris)(
+      Seq(
+        tetris.PotentialEnergy -> -4,
+        tetris.VTransitions -> -10,
+        tetris.MaxHeight -> 1,
+        tetris.BlockCount -> -3,
+        tetris.DistinctHeights -> 3,
+        tetris.Hops -> -2
+      )
+    )
+
+    polPanel.add(new PolicyViewer(fixedPolicy))
+//    polPanel.add(new PolicyViewer(dists.last.controller))
 
     window.getContentPane.add(polPanel, BorderLayout.CENTER)
     window.getContentPane.add(new JLabel("RL Tetris"), BorderLayout.NORTH)
@@ -55,49 +59,59 @@ object Main {
   }
 
   def fromIntervalled[A](xs: Iterable[A], interval: Duration, delay: Duration = Duration(0, "s")): Observable[A] = {
-    val it = xs.iterator
-    Observable.interval(interval).delay(delay)
-      .map(_ => Some(it).filter(_.hasNext).map(_.next()))
-      .takeWhile(_.isDefined).map(_.get)
+    val values = Observable.from(xs)
+    Observable.interval(interval).delay(delay).zip(values)
+      .map(_._2)
   }
 }
 
 class PolicyViewer(val policy: Policy {val mdp: InfTetris},
-                   interval: Duration = Duration("10 ms"), random: Random = new Random(0))
+                   interval: Duration = Duration("1s"), random: Random = new Random(0))
   extends JPanel() {
   this.setLayout(new BoxLayout(this,BoxLayout.Y_AXIS))
 
-  val behavior: Observable[(FlatActionMDP#State, Double)] =
-    Main.fromIntervalled(FlatActionMDP.rollout(policy, random).toIterable, interval, delay = Duration(1, "s"))
-  val stacks: Observable[InfTetris#Stack] = behavior.map(_._1.asInstanceOf[InfTetris#State]._1)
-  val reward: Observable[Double] = behavior.map(_._2)
+  val behavior = Main.fromIntervalled(FlatActionMDP.rolloutWithAction(policy, random).toIterable, interval, delay = Duration(1, "s"))
+  val reward: Observable[Double] = behavior.map(_._1._2)
 
   //num, sum, sum of squar2es
   val rewardAccum: Observable[(Int, Double, Double)] =
     reward.scan((0,0d,0d)){case ((n,sum,sumsq),r) => (n+1,sum + r, sumsq + r*r)}
-  val stackView = new StackViewer(policy.mdp)(stacks)
+  val stackView = new StackViewer(policy.mdp)(behavior)
 
   this.add(stackView)
   this.add(new RxLabel(rewardAccum.sample(Duration("1 s")).map{case (n,s,ss) => f"avg ${s/n}%.2f"}))
 
 }
 
-class StackViewer(val rules: InfTetris)(val state: Observable[InfTetris#Stack]) extends RxDrawable {
+class StackViewer(val rules: InfTetris)(val state: Observable[((InfTetris#State,Double),InfTetris#Action)]) extends RxDrawable {
   val cellSize: Int = 10
   this.setPreferredSize(new Dimension(cellSize * rules.width, cellSize * rules.maxHeight))
 
   state.subscribe{s =>
-    drawStack(s)
+    drawStack(s._1._1,s._2)
     repaint()
   }
   
-  def drawStack(stack: InfTetris#Stack): Unit = {
+  def drawStack(state: InfTetris#State, action: InfTetris#Action): Unit = {
+    def drawBlock(x: Int, y: Int, color: Color): Unit = {
+      g2d.setColor(color)
+      g2d.fillRect(x * cellSize, (rules.maxHeight - y - 1) * cellSize, cellSize, cellSize)
+    }
+    val (stack,piece) = state
+    //draw stack
     for{
       x <- 0 until rules.width
       y <- 0 until rules.maxHeight
     } {
-      g2d.setColor(if(stack.isSet(x,y)) Color.BLACK else Color.WHITE)
-      g2d.fillRect(x * cellSize, (rules.maxHeight - y - 1) * cellSize, cellSize, cellSize)
+      drawBlock(x,y,if(stack.isSet(x,y)) Color.BLACK else Color.WHITE)
+    }
+    val block: InfTetris#Stack = action.getBlock(piece)
+    //Draw shadow of next piece
+    val contact = stack.asInstanceOf[rules.Stack].contactHeight(block.asInstanceOf[rules.Stack])
+    for{
+      (x,y) <- block.occupations
+    } {
+      drawBlock(x,y+contact,Color.GRAY)
     }
   }
 }

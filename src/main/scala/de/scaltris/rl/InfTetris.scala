@@ -13,7 +13,8 @@ import scala.util.hashing.MurmurHash3
   * @param clearReward Reward gained when clearing lines, depending on how many lines were cleared at once.
   * @param newLineReward Reward for getting a new garbage line.
   * @param topOutLineReward Reward for every topping out one line. Should be negative.*/
-case class InfTetris(width: Int = 10, maxHeight: Int = 22,
+case class InfTetris(width: Int = 10,
+                     maxHeight: Int = 22,
                      minHeight: Int = 4,
                      clearReward: Int => Double = _ * 1,
                      newLineReward: Int => Double = _ * 1,
@@ -27,7 +28,7 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
   type State = (Stack,Tetromino)
 
   /** Can be used to represent blocks that rest at y=0, using at most four Integers, each encoding a line. */
-  type PartialStack = Array[Line]
+  type PartialStack = Stack
 
   val fullLine: Line = (0 until width).map(1 << _).reduce(_|_)
 
@@ -39,13 +40,15 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       b.foreach{ case (x,y) =>
         r(y) = r(y) | (1 << x)
       }
-      r
+      Stack(r)
     }
 
     Pieces.allPiecesRotatedShiftedOrdered(width).map(_.map(_.map(blockToPartialStack)))
   }
 
-  case class Action(rotation: Int, xOffset: Int)
+  case class Action(rotation: Int, xOffset: Int){
+    def getBlock(piece: Tetromino): PartialStack = blocks(piece)(rotation)(xOffset)
+  }
 
   val actionCache: IndexedSeq[IndexedSeq[Action]] = (0 to 6).map(t =>
     for {
@@ -65,7 +68,7 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
   override def actions(state: State): IndexedSeq[Action] = actionCache(state._2)
 
   override def act(state: State, action: Action, r: Random): (State, Double) = {
-    val (nextStack, dropResult) = state._1.dropOn(blocks(state._2)(action.rotation)(action.xOffset), r)
+    val (nextStack, dropResult) = state._1.dropOn(action.getBlock(state._2), r)
     ((nextStack,randomTetromino(r)),dropResult.reward)
   }
 
@@ -75,13 +78,11 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       ys <- xs
       z <- ys
     }{
-      println(Stack(z,partial = true))
+      println(z)
     }
   }
 
-  case class Stack(rows: Array[Line], partial: Boolean = false) {
-    assert(partial || rows.length == maxHeight, "created short stack")
-
+  case class Stack(rows: Array[Line]) {
     //first empty row
     lazy val topRow: Int = {
       var i = 0
@@ -106,23 +107,18 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       }
       (Stack(res),requiredLines)
     }
-
-
-    /** Adds one line of garbage with a random hole at the bottom. */
-    private def addGarbageLineUnsafe(r: Random): Stack = Stack((fullLine & ~(1 << r.nextInt(width))) +: rows.init)
-    def dropOn(piece: PartialStack, random: Random): (Stack,DropResult) = {
-
-      val piecePS: Stack = Stack(piece, partial = true)
-
+    
+    def contactHeight(other: Stack): Int = {
+      val pieceRows = other.rows
       //find the height where to place the piece
       def overlaps(height: Int): Boolean = {
-        if(height >= maxHeight)
+        if(height >= rows.length)
           return false
         var pi = 0
         //don't try to match beyond the stack height
-        val topcmp = math.min(piece.length, maxHeight - height)
+        val topcmp = math.min(pieceRows.length, rows.length - height)
         while(pi < topcmp){
-          if((piece(pi) & rows(height + pi)) != 0)
+          if((pieceRows(pi) & rows(height + pi)) != 0)
             return true
           pi += 1
         }
@@ -130,52 +126,59 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       }
 
       //how far to translate the piece upwards
-      val contactHeight = {
-        var tmp = topRow
-        while(tmp > 0 && !overlaps(tmp - 1) ) tmp -= 1
-        tmp
-      }
+      var tmp = topRow
+      while(tmp > 0 && !overlaps(tmp - 1) ) tmp -= 1
+      tmp      
+    }
+
+
+    /** Adds one line of garbage with a random hole at the bottom. */
+    private def addGarbageLineUnsafe(r: Random): Stack = Stack((fullLine & ~(1 << r.nextInt(width))) +: rows.init)
+
+    def dropOn(piece: PartialStack, random: Random): (Stack,DropResult) = {
+      val pieceRows = piece.rows
+
+      val contact = contactHeight(piece)
 
       //topout penalty, and shrink stack
-      val topout = math.max(contactHeight + piecePS.topRow - maxHeight, 0)
+      val topout = math.max(contact + piece.topRow - maxHeight, 0)
       //create the result shrunken by topout lines
       val result: Array[Line] = {
         val r = new Array[Line](maxHeight)
         var i = 0
         while(i < maxHeight){
-          r(i) = if(i + topout >= maxHeight) 0 else rows(i + topout)
+          r(i) = if(i + topout >= rows.length) 0 else rows(i + topout)
           i += 1
         }
         r
       }
 
-      val dropHeight = contactHeight - topout
+      val dropHeight = contact - topout
 
       //add the piece to the stack
       {
         var i = 0
-        while(i < piece.length){
-          result(i + dropHeight) = result(i + dropHeight) | piece(i)
+        while(i < piece.topRow){
+          result(i + dropHeight) = result(i + dropHeight) | pieceRows(i)
           i += 1
         }
       }
 
       //check for full lines
-      val clearedLines = {
-        var i = dropHeight
+      val clearedLines: Tetromino = {
+        var i = dropHeight - topout
         var cleared = 0
-        while(i < maxHeight){
-          val full = result(i) == fullLine
-
-          if(full)
+        var j = i
+        while(i < result.length){
+          while(j < result.length && ((result(j) & fullLine) == fullLine)) {
             cleared += 1
+            j += 1
+          }
 
-          result(i) =
-            if(i + cleared < maxHeight) result(i + cleared)
-            else 0
+          result(i) = if (j < result.length) result(j) else 0
 
-          if(!full)
-            i += 1
+          i += 1
+          j += 1
         }
         cleared
       }
@@ -211,14 +214,19 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
 
     def isSet(col: Int, row: Int): Boolean = (rows(row) >> col & 1) == 1
 
+    def occupations: Iterable[(Int,Int)] = for{
+      row <- 0 until rows.length
+      col <- 0 until width if isSet(col,row)
+    } yield (col,row)
+
     override def toString: String = {
       def l2s(line: Line): String =
-        Iterator.iterate(line)(_ >> 1).map(shifted => if((shifted & 1) == 1) "#" else "·").take(width).mkString
-      Seq.fill(width)("*").mkString + "\n" + rows.reverseMap(l2s).mkString("\n") + "\n" + Seq.fill(width)("*").mkString
+        Iterator.iterate(line)(_ >> 1).map(shifted => if((shifted & 1) == 1) "#" else " ").take(width).mkString
+      rows.reverseMap(l2s).mkString("\n")
     }
 
     override def equals(obj: scala.Any): Boolean = obj match {
-      case Stack(or,_) => or.sameElements(rows)
+      case Stack(or) => or.sameElements(rows)
       case _         => false
     }
 
@@ -227,6 +235,13 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
 
   object Stack{
     def empty: Stack = new Stack(Array.fill(maxHeight)(0))
+    def fromString(s: String, blockChar: Char = '#', pad: Boolean = true): Stack = {
+      val lines = s.lines.toSeq.reverse
+      val array: Array[Int] = lines.zipWithIndex.map{case (row,i) =>
+          row.zipWithIndex.filter(_._1 == blockChar).map(x => (1 << x._2) & fullLine).foldLeft(0)(_ | _)
+      }(collection.breakOut)
+      Stack(if(pad) array.padTo(maxHeight,0) else array)
+    }
   }
 
   /** Weigh eich block with its height.
@@ -279,6 +294,7 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       Integer.bitCount(acc)
     }
   }
+  /** Number of uneven transitions within the profile. */
   case object Hops extends Feature {
     override def compute(state: (Stack, Tetromino)): Double = {
       val p = state._1.profile
@@ -292,6 +308,7 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       hops
     }
   }
+  /** How often the profile changes direction. */
   case object HopAlternations extends Feature {
     override def compute(state: (Stack, Tetromino)): Double = {
       val p = state._1.profile
@@ -310,4 +327,50 @@ case class InfTetris(width: Int = 10, maxHeight: Int = 22,
       alternations
     }
   }
+  /** The number of blocks that are above holes. */
+  case object CoveringBlocks extends Feature {
+    override def compute(state: (Stack, Tetromino)): Double = {
+      //bits become set when the sweep encounters a clear block
+      var clearMask = 0
+      var result = 0
+      var row = 0
+      while(row < maxHeight){
+        val line = state._1.rows(row)
+        //count the set blocks that are also set in the clear mask
+        result += Integer.bitCount(line & clearMask)
+        clearMask = clearMask | ~line
+        row += 1
+      }
+      result
+    }
+  }
+  /** The number of unset locations covered by blocks. */
+  case object NumberOfHoles extends Feature {
+    override def compute(state: (Stack, Tetromino)): Double = {
+      //same as CoveringBlocks, but inverted (also sweeping downwards)
+      //bits become set when the sweep encounters a set block
+      var setMaskMask = 0
+      var result = 0
+      var row = maxHeight - 1
+      while(row >= 0){
+        val line = state._1.rows(row)
+        //count the set blocks that are also set in the clear mask
+        result += Integer.bitCount(~line & setMaskMask)
+        setMaskMask = setMaskMask | line
+        row -= 1
+      }
+      result
+    }
+  }
+  val allFeatures: Seq[Feature] = Seq(
+    PotentialEnergy,
+    VTransitions,
+    MaxHeight,
+    BlockCount,
+    DistinctHeights,
+    Hops,
+    HopAlternations,
+    CoveringBlocks,
+    NumberOfHoles
+  )
 }
