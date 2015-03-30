@@ -10,19 +10,10 @@ import scala.util.Random
  */
 object FeatureInspect {
   val tetris = InfTetris(minHeight = 0)
-  val policy = new LinearController(tetris)(
-    Seq(
-      tetris.PotentialEnergy -> -4,
-      tetris.VTransitions -> -10,
-      tetris.MaxHeight -> 1,
-      tetris.BlockCount -> -3,
-      tetris.DistinctHeights -> 3,
-      tetris.Hops -> -2
-    )
-  )
+  val policy = LinearController.fixed1(tetris)
 
   def sampleStack(r: Random): (tetris.Stack, tetris.Tetromino) =
-    FlatActionMDP.rollout(policy, r).drop(5).next()._1.asInstanceOf[tetris.State]
+    FlatActionMDP.rollout(policy, r).drop(r.nextInt(10)).next()._1.asInstanceOf[tetris.State]
 
   def main(args: Array[String]) {
     val numStacks = 5

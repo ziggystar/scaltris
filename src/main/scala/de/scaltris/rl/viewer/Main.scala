@@ -31,9 +31,10 @@ object Main {
       tetris.DistinctHeights -> -1,
       tetris.HopAlternations -> -4.9,
       tetris.CoveringBlocks -> 0.6,
-      tetris.NumberOfHoles -> -6
+      tetris.NumberOfHoles -> -6,
+      tetris.MinHeight -> 0
     )
-    val fixedPolicy: LinearController = new LinearController(tetris)(weightedFeatures)
+    val fixedPolicy: LinearController = LinearController.fixed1(tetris)
 
     evalPolicy(rand, rolloutLength, fixedPolicy)
 

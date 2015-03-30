@@ -83,7 +83,7 @@ case class InfTetris(width: Int = 10,
   }
 
   case class Stack(rows: Array[Line]) {
-    //first empty row
+    /** The first empty row. */
     lazy val topRow: Int = {
       var i = 0
       while(i < rows.length && rows(i) != 0){
@@ -378,6 +378,19 @@ case class InfTetris(width: Int = 10,
       result
     }
   }
+  case object MinHeight extends Feature {
+    override def compute(state: (Stack, Tetromino)): Double = {
+      val s = state._1
+      var mask = 0
+      var i = math.min(s.topRow,maxHeight - 1)
+      while(i > 0 && mask != fullLine) {
+        i -= 1
+        mask = mask | s.rows(i)
+      }
+      if(mask == fullLine) i + 1
+      else 0
+    }
+  }
   val allFeatures: Seq[Feature] = Seq(
     PotentialEnergy,
     VTransitions,
@@ -387,6 +400,7 @@ case class InfTetris(width: Int = 10,
     Hops,
     HopAlternations,
     CoveringBlocks,
-    NumberOfHoles
+    NumberOfHoles,
+    MinHeight
   )
 }
