@@ -56,3 +56,19 @@ class LinearController(val mdp: InfTetris)(_weightedFeatures: Seq[(InfTetris#Fea
     new LinearController(mdp)(features zip newWeights)
   }
 }
+
+object LinearController {
+  def fixed1(tetris: InfTetris): LinearController = {
+    val weightedFeatures: Seq[(InfTetris#Feature, Double)] = Seq(
+      tetris.PotentialEnergy -> -0.8,
+      tetris.VTransitions -> -7.2,
+      tetris.MaxHeight -> -4,
+      tetris.BlockCount -> 6.3,
+      tetris.DistinctHeights -> -1,
+      tetris.HopAlternations -> -4.9,
+      tetris.CoveringBlocks -> 0.6,
+      tetris.NumberOfHoles -> -6
+    )
+    new LinearController(tetris)(weightedFeatures)
+  }
+}

@@ -2,6 +2,7 @@ package de.scaltris.rl.viewer
 
 import java.lang.management.ManagementFactory
 
+import de.scaltris.rl.controllers.linear.LinearController
 import de.scaltris.rl.{FlatActionMDP, InfTetris}
 
 import scala.util.Random
@@ -10,10 +11,8 @@ object Benchmark extends App {
 
   val tetris = InfTetris()
   benchmark("InfTetris random policy playouts 1000k",repeats = 10){
-    () => FlatActionMDP.randomPlayout(tetris,new Random(0)).drop(1000000)
+    () => FlatActionMDP.rollout(LinearController.fixed1(tetris),new Random(0)).drop(100000)
   }
-
-
 
 
   def benchmark(name: String, n: Int = 1, repeats: Int = 5)(f: () => Unit): Unit = {
