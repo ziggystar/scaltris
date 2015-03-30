@@ -195,19 +195,26 @@ case class InfTetris(width: Int = 10,
       (Stack(cleared ++ Array.fill(numCleared)(0)), numCleared)
     }
 
+    //maxihatops solution
+
     lazy val profile: Array[Int] = {
-      var col = 0
       val result = new Array[Int](width)
-      while(col < width){
-        var row = 0
-        var max = 0
-        while(row < maxHeight){
-          if(isSet(col,row))
-            max = row + 1
-          row += 1
+
+      // Convert (1 << n) to n for n == 0-10
+      var row = maxHeight - 1
+      // create bitset for columns for check
+      var testbits: Int = (1 << width) - 1
+      // Iterate rows from up to bottom, and while exist columns for check
+      while(row >= 0 && testbits != 0) {
+        var rowtestbits = testbits & rows(row)
+        while(rowtestbits != 0) {
+          // extract lowest bit_1 from bitset rowtestbits
+          val curbit = rowtestbits & -rowtestbits
+          result(Stack.bit2ndx(curbit % 11)) = row + 1
+          rowtestbits = rowtestbits ^ curbit
+          testbits    = testbits ^ curbit
         }
-        result(col) = max
-        col += 1
+        row -= 1
       }
       result
     }
@@ -234,6 +241,7 @@ case class InfTetris(width: Int = 10,
   }
 
   object Stack{
+    final val bit2ndx: Array[Int] = Array(-1, 0, 1, 8, 2, 4, 9, 7, 3, 6, 5)
     def empty: Stack = new Stack(Array.fill(maxHeight)(0))
     def fromString(s: String, blockChar: Char = '#', pad: Boolean = true): Stack = {
       val lines = s.lines.toSeq.reverse
