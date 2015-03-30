@@ -285,8 +285,16 @@ case class InfTetris(width: Int = 10,
   }
 
   case object BlockCount extends Feature {
-    override def compute(state: (Stack, Tetromino)): Double =
-      state._1.rows.foldLeft(0){case (a,row) => a + Integer.bitCount(row)}.toDouble
+    override def compute(state: (Stack, Tetromino)): Double = {
+      val rows = state._1.rows
+      var i = 0
+      var result = 0
+      while(i < maxHeight && rows(i) != 0){
+        result += Integer.bitCount(rows(i))
+        i += 1
+      }
+      result
+    }
   }
   case object DistinctHeights extends Feature {
     require(maxHeight < 32)
